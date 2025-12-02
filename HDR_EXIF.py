@@ -123,11 +123,11 @@ def pq_eotf(image_pq):
     Converts Rec.2100 PQ (0-1 range) to Linear Light (0-10000 nits range).
     Standard SMPTE ST 2084 EOTF.
     """
-    m1 = 2610.0 / 16384.0
-    m2 = 2523.0 / 4096.0 * 128.0
-    c1 = 3424.0 / 4096.0
-    c2 = 2413.0 / 4096.0 * 32.0
-    c3 = 2392.0 / 4096.0 * 32.0
+    m1 = (2610.0 / 16384.0)
+    m2 = (2523.0 / 4096.0) * 128.0
+    c1 = (3424.0 / 4096.0)
+    c2 = (2413.0 / 4096.0) * 32.0
+    c3 = (2392.0 / 4096.0) * 32.0
 
     # Avoid division by zero/complex numbers
     image_pq = np.maximum(image_pq, 0.0)
@@ -203,6 +203,7 @@ def apply_lut(image, lut_3d):
     
     # Create grid points for the LUT
     # The LUT is defined on a grid from 0 to 1
+    # Nan edited ZYX or XYZ order 
     x = np.linspace(0, 1, size)
     y = np.linspace(0, 1, size)
     z = np.linspace(0, 1, size)
@@ -308,16 +309,16 @@ def convert_to_heif_gainmap(input_file, output_file, profile_name):
             print(f"  Applying LUT: {lut_filename}")
             lut_3d = read_cube_lut(lut_path)
             
-            # Apply LUT to PQ image (assuming LUT expects PQ input or 0-1 range)
-            # Image is BGR (OpenCV default). LUT expects RGB usually?
-            # .cube files are usually RGB.
-            # If our apply_lut uses (B, G, R) grid, and image is BGR, it works.
-            # But let's be careful.
-            # read_cube_lut reshapes to (B, G, R).
-            # apply_lut expects points in (B, G, R) order if grid is (z, y, x).
-            # So passing BGR image is correct.
+            # Convert BGR to RGB for LUT application
+            # OpenCV reads images as BGR, but LUT expects RGB
+            img_pq_rgb = cv2.cvtColor(img_pq, cv2.COLOR_BGR2RGB)
             
-            img_sdr_srgb = apply_lut(img_pq, lut_3d)
+            # Apply LUT to RGB image
+            img_sdr_srgb_rgb = apply_lut(img_pq_rgb, lut_3d)
+            
+            # Convert back to BGR for OpenCV
+            #img_sdr_srgb = cv2.cvtColor(img_sdr_srgb_rgb.astype(np.float32), cv2.COLOR_RGB2BGR)
+            img_sdr_srgb = img_sdr_srgb_rgb.astype(np.float32)
             
             # Clip to 0-1
             img_sdr_srgb = np.clip(img_sdr_srgb, 0, 1)
@@ -359,6 +360,21 @@ def convert_to_heif_gainmap(input_file, output_file, profile_name):
         h, w = gain_map_uint8.shape
         gain_map_resized = cv2.resize(gain_map_uint8, (w // 2, h // 2))
         cv2.imwrite(temp_gain, gain_map_resized, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        
+        # Save gain maps to /gainmap folder for study
+        # Create gainmap folder in the same directory as output file
+        output_dir = os.path.dirname(output_file)
+        gainmap_dir = os.path.join(os.path.dirname(output_dir), "gainmap")
+        os.makedirs(gainmap_dir, exist_ok=True)
+        
+        # Generate gain map filenames based on output filename
+        base_output_name = os.path.splitext(os.path.basename(output_file))[0]
+        gainmap_full_path = os.path.join(gainmap_dir, f"{base_output_name}_gainmap_full.jpg")
+        gainmap_half_path = os.path.join(gainmap_dir, f"{base_output_name}_gainmap_half.jpg")
+        
+        # Save full resolution and half resolution gain maps
+        cv2.imwrite(gainmap_full_path, gain_map_uint8, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        cv2.imwrite(gainmap_half_path, gain_map_resized, [cv2.IMWRITE_JPEG_QUALITY, 95])
         
         # 5b. Add Text Overlay to SDR Base Image using ImageMagick
         # Matches the style of the other exports
