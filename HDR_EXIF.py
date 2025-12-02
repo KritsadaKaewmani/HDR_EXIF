@@ -30,6 +30,7 @@ import subprocess   # Module to spawn new processes and execute shell commands
 import sys          # System-specific parameters and functions (command-line args, exit codes)
 import numpy as np  # Numerical operations for image processing
 import cv2          # OpenCV for image reading and processing
+from scipy.interpolate import RegularGridInterpolator # For 3D LUT interpolation
 
 
 # ============================================================================
@@ -137,6 +138,100 @@ def pq_eotf(image_pq):
     linear = (num / den) ** (1.0/m1)
     return linear * 10000.0  # Scale to absolute nits
 
+def read_cube_lut(lut_path):
+    """
+    Reads a .cube 3D LUT file.
+    Returns the LUT data as a numpy array (N, N, N, 3).
+    """
+    with open(lut_path, 'r') as f:
+        lines = f.readlines()
+
+    # Filter out comments and empty lines
+    lines = [line.strip() for line in lines if line.strip() and not line.startswith('#') and not line.startswith('TITLE')]
+    
+    # Parse size
+    size_line = [line for line in lines if line.startswith('LUT_3D_SIZE')]
+    if not size_line:
+        raise ValueError("Invalid .cube file: LUT_3D_SIZE not found")
+    
+    size = int(size_line[0].split()[1])
+    
+    # Parse data
+    data_lines = [line for line in lines if not line.startswith('LUT_3D_SIZE') and not line.startswith('DOMAIN')]
+    
+    data = []
+    for line in data_lines:
+        parts = line.split()
+        if len(parts) == 3:
+            data.append([float(p) for p in parts])
+            
+    lut_data = np.array(data, dtype=np.float32)
+    
+    if len(lut_data) != size * size * size:
+         # Some cube files might have DOMAIN_MIN/MAX lines, ensure we only read data
+         # If count mismatch, try to be more robust or raise error
+         raise ValueError(f"LUT data size mismatch. Expected {size**3}, got {len(lut_data)}")
+
+    # Reshape to (Size, Size, Size, 3)
+    # Note: .cube format usually stores data with Red changing fastest, then Green, then Blue?
+    # Actually, standard is: Blue (slowest), Green, Red (fastest).
+    # So reshaping to (B, G, R, 3) or (R, G, B, 3)?
+    # Most parsers reshape to (size, size, size, 3).
+    # We need to verify the order for RegularGridInterpolator.
+    # RegularGridInterpolator expects points in (x, y, z) order.
+    # If we pass (R, G, B) image, we need the grid to match.
+    
+    # Standard .cube order:
+    # Loop B:
+    #   Loop G:
+    #     Loop R:
+    #       Data R G B
+    
+    # So the flat list is ordered by B, G, R.
+    # Reshape to (B, G, R, 3) -> (size, size, size, 3)
+    lut_3d = lut_data.reshape(size, size, size, 3)
+    
+    return lut_3d
+
+def apply_lut(image, lut_3d):
+    """
+    Applies a 3D LUT to an image using trilinear interpolation.
+    image: (H, W, 3) float32, range 0-1
+    lut_3d: (N, N, N, 3) float32
+    """
+    size = lut_3d.shape[0]
+    
+    # Create grid points for the LUT
+    # The LUT is defined on a grid from 0 to 1
+    x = np.linspace(0, 1, size)
+    y = np.linspace(0, 1, size)
+    z = np.linspace(0, 1, size)
+    
+    # Create interpolator
+    # Note: RegularGridInterpolator expects (z, y, x) if we index as [z, y, x]
+    # But our image is (R, G, B).
+    # The LUT structure from .cube is (B, G, R) if we reshaped as (size, size, size).
+    # So lut_3d[b_idx, g_idx, r_idx] gives the value.
+    # We should pass points as (B, G, R).
+    
+    # Let's verify image channel order. OpenCV reads as BGR.
+    # We need to convert image to RGB if we want to query as (R, G, B).
+    # Or keep BGR and query as (B, G, R).
+    # If the image is BGR, and we query (B, G, R), it matches the LUT structure (B, G, R).
+    
+    interp = RegularGridInterpolator((z, y, x), lut_3d, bounds_error=False, fill_value=None)
+    
+    # Flatten image to list of points
+    # Image is (H, W, 3). If BGR, then points are (B, G, R).
+    # This matches the (z, y, x) grid of the LUT (B, G, R).
+    points = image.reshape(-1, 3)
+    
+    # Interpolate
+    result = interp(points)
+    
+    # Reshape back to image
+    return result.reshape(image.shape)
+
 def linear_to_srgb(linear_image):
     """
     Simple tone mapping and gamma correction for the SDR Base Image.
@@ -204,9 +299,34 @@ def convert_to_heif_gainmap(input_file, output_file, profile_name):
         img_linear = pq_eotf(img_pq)
 
         # 3. Create SDR Base Image
-        # Tone map to SDR
-        img_sdr_linear_src = img_linear.copy()
-        img_sdr_srgb = linear_to_srgb(img_sdr_linear_src)
+        # Use 3D LUT for Tone Mapping (ACES P3D65 to sRGB)
+        lut_filename = "ACES20_P3D65PQ1000_to_sRGB22.cube"
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        lut_path = os.path.join(script_dir, lut_filename)
+        
+        if os.path.exists(lut_path):
+            print(f"  Applying LUT: {lut_filename}")
+            lut_3d = read_cube_lut(lut_path)
+            
+            # Apply LUT to PQ image (assuming LUT expects PQ input or 0-1 range)
+            # Image is BGR (OpenCV default). LUT expects RGB usually?
+            # .cube files are usually RGB.
+            # If our apply_lut uses (B, G, R) grid, and image is BGR, it works.
+            # But let's be careful.
+            # read_cube_lut reshapes to (B, G, R).
+            # apply_lut expects points in (B, G, R) order if grid is (z, y, x).
+            # So passing BGR image is correct.
+            
+            img_sdr_srgb = apply_lut(img_pq, lut_3d)
+            
+            # Clip to 0-1
+            img_sdr_srgb = np.clip(img_sdr_srgb, 0, 1)
+        else:
+            print(f"  ⚠ LUT not found: {lut_filename}. Using fallback tone mapping.")
+            # Fallback to simple tone mapping
+            img_sdr_linear_src = img_linear.copy()
+            img_sdr_srgb = linear_to_srgb(img_sdr_linear_src)
+            
         img_sdr_uint8 = (img_sdr_srgb * 255).astype(np.uint8)
         
         # Calculate SDR Linear (Inverse sRGB Gamma) for gain map calculation
