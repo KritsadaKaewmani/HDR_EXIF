@@ -21,7 +21,7 @@ Dependencies: numpy, opencv-python, heif-enc, exiftool
 Process:
 Load 16-bit TIFF
 Linearize PQ to Nits (using standard ST 2084 EOTF)
-Generate SDR Base Image (Tone mapping + sRGB Gamma)
+Generate SDR Base Image (ACES2.0 P3D65PQ1000_to_sRGB22.cube)
 Calculate Gain Map (HDR Linear / SDR Linear)
 Stitch Base + Gain Map using heif-enc
 Inject Apple HDR Headroom metadata
@@ -32,17 +32,33 @@ Applied to: All three export versions
 4. Organization
 Output: All files saved to converted/ subfolder
 Naming: <filename>_<profile_name>.heic
-Verification Results
-Tested with HDR_P3D65PQ1000nits.00000000.tif:
 
 Generated Files
-HDR_P3D65PQ1000nits.00000000_HDR_P3_D65_ST2084.heic
-HDR_P3D65PQ1000nits.00000000_P3_PQ.heic
-HDR_P3D65PQ1000nits.00000000_HDR_gain_map.heic
-Gain Map Validation
-Headroom Calculation: 2.14 (1.10 stops) for the test image
-Text Overlay: Verified "HDR_gain_map" label on the base image
-Structure: Valid HEIC with auxiliary image
+filename_HDR_P3_D65_ST2084.heic
+filename_P3_PQ.heic
+filename_HDR_gain_map.heic
+
+## Example Outputs
+
+### Converted HEIC Files
+
+![HDR_gain_map](test_image/converted/Src_HDR_P3D65PQ_00_SaveAs_HDR_gain_map.png)
+*HDR Gain Map export with text overlay*
+
+![HDR_P3_D65_ST2084](test_image/converted/Src_HDR_P3D65PQ_00_SaveAs_HDR_P3_D65_ST2084.png)
+*HDR P3 D65 ST2084 profile export*
+
+![P3_PQ](test_image/converted/Src_HDR_P3D65PQ_00_SaveAs_P3_PQ.png)
+*P3 PQ profile export*
+
+### Gain Map Visualizations
+
+![Gain Map Full](test_image/gainmap/Src_HDR_P3D65PQ_00_SaveAs_HDR_gain_map_gainmap_full.jpg)
+*Full resolution gain map*
+
+![Gain Map Half](test_image/gainmap/Src_HDR_P3D65PQ_00_SaveAs_HDR_gain_map_gainmap_half.jpg)
+*Half resolution gain map (embedded in HEIC)*
+
 Usage
 
 # Activate virtual environment (required for numpy/cv2)
