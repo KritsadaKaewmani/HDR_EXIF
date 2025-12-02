@@ -28,6 +28,8 @@ Requirements:
 import os           # Operating system interface for file/directory operations
 import subprocess   # Module to spawn new processes and execute shell commands
 import sys          # System-specific parameters and functions (command-line args, exit codes)
+import numpy as np  # Numerical operations for image processing
+import cv2          # OpenCV for image reading and processing
 
 
 # ============================================================================
@@ -68,6 +70,14 @@ def convert_to_heif_with_icc(input_file, output_file, icc_profile, profile_name)
                                      # 10-bit = 1024 levels per channel (vs 8-bit = 256 levels)
                                      # Essential for HDR to prevent banding artifacts
         
+        # --- Text Overlay Settings ---
+        "-gravity", "NorthWest",     # Position text at top-left corner
+        "-font", "Arial",            # Use Arial font
+        "-pointsize", "15",          # Font size of 15 pixels (height)
+        "-fill", "gray(50%)",        # Gray 0.5 (50% gray) text color
+        "-undercolor", "black",      # Black highlight/background behind text
+        "-annotate", "+10+10", profile_name,  # Add text with 10px offset from top-left
+        
         # --- HEIF-Specific Settings ---
         "-define", "heic:preserve-orientation=true",  # Maintain EXIF orientation metadata
                                                        # Ensures image displays correctly rotated
@@ -104,6 +114,192 @@ def convert_to_heif_with_icc(input_file, output_file, icc_profile, profile_name)
 
 
 # ============================================================================
+# GAIN MAP GENERATION FUNCTIONS
+# ============================================================================
+
+def pq_eotf(image_pq):
+    """
+    Converts Rec.2100 PQ (0-1 range) to Linear Light (0-10000 nits range).
+    Standard SMPTE ST 2084 EOTF.
+    """
+    m1 = 2610.0 / 16384.0
+    m2 = 2523.0 / 4096.0 * 128.0
+    c1 = 3424.0 / 4096.0
+    c2 = 2413.0 / 4096.0 * 32.0
+    c3 = 2392.0 / 4096.0 * 32.0
+
+    # Avoid division by zero/complex numbers
+    image_pq = np.maximum(image_pq, 0.0)
+    
+    num = np.maximum(image_pq**(1.0/m2) - c1, 0.0)
+    den = c2 - c3 * (image_pq**(1.0/m2))
+    
+    linear = (num / den) ** (1.0/m1)
+    return linear * 10000.0  # Scale to absolute nits
+
+def linear_to_srgb(linear_image):
+    """
+    Simple tone mapping and gamma correction for the SDR Base Image.
+    """
+    # 1. Simple Tone Mapping (Reinhard or similar) to bring 1000 nits down to 0-1
+    # Adjust this scalar to set the "SDR White Point" (e.g., 203 nits maps to ~1.0)
+    sdr_white_nits = 203.0 
+    mapped = linear_image / sdr_white_nits
+    mapped = mapped / (1 + mapped) # Reinhard tonemap
+    
+    # 2. Gamma Correct (Standard sRGB approx)
+    srgb = np.where(mapped <= 0.0031308, 
+                    12.92 * mapped, 
+                    1.055 * (mapped ** (1.0/2.4)) - 0.055)
+    return np.clip(srgb, 0, 1)
+
+def create_gain_map(hdr_linear, sdr_linear, max_headroom=None):
+    """
+    Calculates the Gain Map.
+    Gain = (HDR / SDR). 
+    """
+    # Avoid division by zero
+    sdr_safe = np.maximum(sdr_linear, 1e-6)
+    gain = hdr_linear / sdr_safe
+    
+    if max_headroom is None:
+        max_headroom = np.max(gain)
+    
+    # Ensure headroom is at least 1.0
+    max_headroom = max(max_headroom, 1.0)
+    
+    # If headroom is 1.0 (no gain), return zero map
+    if max_headroom <= 1.001:
+        return np.zeros_like(gain), 1.0
+        
+    # Log-encode or Sqrt-encode is common for storage efficiency in 8-bit
+    # For this example, we normalize to 0-1 based on headroom
+    # Map 1.0 -> 0 (No gain) to Headroom -> 1.0 (Max gain)
+    
+    # Avoid log2(0) by adding epsilon
+    log_gain = np.log2(gain + 1e-6)
+    # Clamp negative values (where gain < 1.0) to 0
+    log_gain = np.maximum(log_gain, 0.0)
+    
+    gain_map_norm = log_gain / np.log2(max_headroom)
+    
+    return np.clip(gain_map_norm, 0, 1), max_headroom
+
+def convert_to_heif_gainmap(input_file, output_file, profile_name):
+    """
+    Convert HDR image to HEIC with an embedded Gain Map.
+    Uses OpenCV for processing and heif-enc for encoding.
+    """
+    try:
+        # 1. Load HDR Image (16-bit TIF)
+        # Read as 16-bit unsigned (-1 flag in cv2)
+        img_uq = cv2.imread(input_file, cv2.IMREAD_UNCHANGED)
+        if img_uq is None:
+            raise ValueError(f"Could not read image: {input_file}")
+            
+        # Convert to 0-1 Float PQ
+        img_pq = img_uq.astype(np.float32) / 65535.0
+
+        # 2. Linearize PQ to Nits
+        img_linear = pq_eotf(img_pq)
+
+        # 3. Create SDR Base Image
+        # Tone map to SDR
+        img_sdr_linear_src = img_linear.copy()
+        img_sdr_srgb = linear_to_srgb(img_sdr_linear_src)
+        img_sdr_uint8 = (img_sdr_srgb * 255).astype(np.uint8)
+        
+        # Calculate SDR Linear (Inverse sRGB Gamma) for gain map calculation
+        # This represents the linear light of the SDR image displayed on a standard screen
+        # sRGB EOTF (approximate)
+        sdr_norm = img_sdr_srgb
+        sdr_linear_display = np.where(sdr_norm <= 0.04045,
+                                     sdr_norm / 12.92,
+                                     ((sdr_norm + 0.055) / 1.055) ** 2.4)
+        # Scale by SDR white point (203 nits) to match HDR scale
+        sdr_white_nits = 203.0
+        img_sdr_linear = sdr_linear_display * sdr_white_nits
+
+        # 4. Create Gain Map
+        # We use Luminance (Y) for gain map calculation to save space
+        # Y = 0.2126 R + 0.7152 G + 0.0722 B
+        lum_hdr = 0.2126 * img_linear[:,:,2] + 0.7152 * img_linear[:,:,1] + 0.0722 * img_linear[:,:,0]
+        lum_sdr = 0.2126 * img_sdr_linear[:,:,2] + 0.7152 * img_sdr_linear[:,:,1] + 0.0722 * img_sdr_linear[:,:,0]
+
+        gain_map, headroom = create_gain_map(lum_hdr, lum_sdr)
+        gain_map_uint8 = (gain_map * 255).astype(np.uint8)
+
+        # 5. Save Intermediate Files
+        temp_sdr = f"temp_sdr_{os.getpid()}.jpg"
+        temp_gain = f"temp_gain_{os.getpid()}.jpg"
+        
+        cv2.imwrite(temp_sdr, img_sdr_uint8, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        
+        # Resize gain map (1/2 resolution)
+        h, w = gain_map_uint8.shape
+        gain_map_resized = cv2.resize(gain_map_uint8, (w // 2, h // 2))
+        cv2.imwrite(temp_gain, gain_map_resized, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        
+        # 5b. Add Text Overlay to SDR Base Image using ImageMagick
+        # Matches the style of the other exports
+        annotate_cmd = [
+            "/opt/homebrew/bin/magick",
+            temp_sdr,
+            "-gravity", "NorthWest",
+            "-font", "Arial",
+            "-pointsize", "15",
+            "-fill", "gray(50%)",
+            "-undercolor", "black",
+            "-annotate", "+10+10", profile_name,
+            temp_sdr  # Overwrite temp file
+        ]
+        subprocess.run(annotate_cmd, check=True)
+
+        # 6. Call heif-enc to stitch
+        urn = "urn:com:apple:photo:2020:aux:hdrgainmap"
+        
+        # Ensure heif-enc is in path or specify full path
+        heif_enc_path = "heif-enc"
+        if os.path.exists("/opt/homebrew/bin/heif-enc"):
+            heif_enc_path = "/opt/homebrew/bin/heif-enc"
+
+        cmd = [
+            heif_enc_path,
+            "-o", output_file,
+            temp_sdr,
+            f"--aux-image={urn},{temp_gain}"
+        ]
+
+        subprocess.run(cmd, check=True, capture_output=True)
+        
+        # 7. Inject Metadata via ExifTool
+        # Calculate headroom in stops (log2) if needed, or use the ratio directly
+        # Apple usually expects stops? The reference code used 3.0.
+        # Let's use the calculated headroom if possible, or a safe default.
+        # The reference code calculated `headroom` (linear max ratio).
+        # Apple:HDRHeadroom is typically in stops.
+        headroom_stops = np.log2(headroom) if headroom > 1.0 else 0.0
+        
+        subprocess.run([
+            "exiftool", 
+            "-overwrite_original", 
+            f"-Apple:HDRHeadroom={headroom_stops:.4f}", 
+            output_file
+        ], check=False, capture_output=True) # check=False in case exiftool missing
+
+        print(f"✓ Successfully created Gain Map HEIC: {os.path.basename(output_file)}")
+        print(f"  Headroom: {headroom:.2f} ({headroom_stops:.2f} stops)")
+
+    except Exception as e:
+        print(f"✗ Error creating Gain Map for {input_file}: {e}")
+        raise
+    finally:
+        # Cleanup
+        if 'temp_sdr' in locals() and os.path.exists(temp_sdr): os.remove(temp_sdr)
+        if 'temp_gain' in locals() and os.path.exists(temp_gain): os.remove(temp_gain)
+
+
+# ============================================================================
 # BATCH PROCESSING FUNCTION
 # ============================================================================
 
@@ -131,7 +327,8 @@ def process_directory(directory):
     # Each tuple contains (profile_filename, profile_display_name)
     ICC_PROFILES = [
         ("HDR_P3_D65_ST2084.icc", "HDR_P3_D65_ST2084"),
-        ("P3_PQ.icc", "P3_PQ")
+        ("P3_PQ.icc", "P3_PQ"),
+        ("HDR_P3_D65_ST2084.icc", "HDR_gain_map")  # Third export with gain map label
     ]
     
     # Get the script directory to locate ICC profiles
@@ -194,8 +391,9 @@ def process_directory(directory):
                 file_failed += 1
                 continue
             
-            # Generate output filename with profile name appended in converted subfolder
-            output_file = os.path.join(converted_dir, f"{base_name}_{profile_name}.heic")
+            # Construct output filename
+            # Format: Src_<base_name>_SaveAs_<profile_name>.heic
+            output_file = os.path.join(converted_dir, f"Src_{base_name}_SaveAs_{profile_name}.heic")
             
             # Skip if output file already exists
             if os.path.exists(output_file):
@@ -205,7 +403,10 @@ def process_directory(directory):
             
             # Attempt conversion
             try:
-                convert_to_heif_with_icc(file_path, output_file, icc_profile_path, profile_name)
+                if profile_name == "HDR_gain_map":
+                    convert_to_heif_gainmap(file_path, output_file, profile_name)
+                else:
+                    convert_to_heif_with_icc(file_path, output_file, icc_profile_path, profile_name)
                 file_successful += 1
             except subprocess.CalledProcessError:
                 print(f"  ✗ Failed to convert with {profile_name}")
@@ -322,10 +523,12 @@ def main():
         print("\nICC Profiles Used:")
         print("  - HDR_P3_D65_ST2084.icc")
         print("  - P3_PQ.icc")
+        print("  - HDR_P3_D65_ST2084.icc (for gain map)")
         print("\nOutput:")
         print("  Files are saved in a 'converted' subfolder:")
-        print("  - converted/<filename>_HDR_P3_D65_ST2084.heic")
-        print("  - converted/<filename>_P3_PQ.heic")
+        print("  - converted/Src_<filename>_SaveAs_HDR_P3_D65_ST2084.heic")
+        print("  - converted/Src_<filename>_SaveAs_P3_PQ.heic")
+        print("  - converted/Src_<filename>_SaveAs_HDR_gain_map.heic")
         print("\nExamples:")
         print(f"  python {os.path.basename(__file__)} image.tiff")
         print(f"  python {os.path.basename(__file__)} ./images/")
@@ -355,7 +558,8 @@ def main():
         # Define ICC profiles
         ICC_PROFILES = [
             ("HDR_P3_D65_ST2084.icc", "HDR_P3_D65_ST2084"),
-            ("P3_PQ.icc", "P3_PQ")
+            ("P3_PQ.icc", "P3_PQ"),
+            ("HDR_P3_D65_ST2084.icc", "HDR_gain_map")  # Third export with gain map label
         ]
         
         if path_type == 'file':
@@ -379,7 +583,8 @@ def main():
                 icc_profile_path = os.path.join(script_dir, profile_filename)
                 
                 # Generate output filename with profile name appended in converted subfolder
-                output_path = os.path.join(converted_dir, f"{base_name}_{profile_name}.heic")
+                # Format: Src_<base_name>_SaveAs_<profile_name>.heic
+                output_path = os.path.join(converted_dir, f"Src_{base_name}_SaveAs_{profile_name}.heic")
                 
                 # Check if output already exists
                 if os.path.exists(output_path):
@@ -391,7 +596,10 @@ def main():
                 
                 # Perform conversion
                 print(f"Converting with {profile_name}...")
-                convert_to_heif_with_icc(input_path, output_path, icc_profile_path, profile_name)
+                if profile_name == "HDR_gain_map":
+                    convert_to_heif_gainmap(input_path, output_path, profile_name)
+                else:
+                    convert_to_heif_with_icc(input_path, output_path, icc_profile_path, profile_name)
                 print()
             
             print(f"✓ All conversions complete\n")
