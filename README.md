@@ -37,6 +37,7 @@ Naming: <filename>_<profile_name>.heic<br>
 filename_HDR_P3_D65_ST2084.heic<br>
 filename_P3_PQ.heic<br>
 filename_HDR_gain_map.heic ( with tmp gain map for preview in /gainmap folder)<br>
+🚧 something happend to the gain map version, color shifted to yellow i'm still working on it
 
 ### Reference
 
