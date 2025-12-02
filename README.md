@@ -42,8 +42,14 @@ filename_HDR_gain_map.heic<br>
 <https://developer.apple.com/videos/play/wwdc2023/10181/>
 <https://developer.apple.com/documentation/UIKit/supporting-hdr-images-in-your-app>
 <https://developer.apple.com/documentation/appkit/applying-apple-hdr-effect-to-your-photos>
+[Sample R3D Files](https://www.red.com/sample-r3d-files)
+[Sample ARRI Files](https://www.arri.com/en/learn-help/learn-help-camera-system/camera-sample-footage-reference-image)
+[Sample Sony Files](https://sony-cinematography.com/testfootage/)
+[Sample Nikon Files](https://www.nikonusa.com/content/Zcinema-raw-file-downloads?srsltid=AfmBOopITr6b7WNFmGfOC9YJInmeEPrTD-cAvlwmmigKjYxMOHG9AIiI)
 
-## Preview Gallery only : You must load HEIC files from "test_image/converted" folder on your device to see the result
+## Preview Gallery only : <br>
+
+You must load HEIC files from "test_image/converted" folder on your device to see the result
 
 ### Image 00
 
