@@ -14,8 +14,8 @@ Key Features
 
 1. Dual ICC Profile Export<br>
 Profiles:<br>
-HDR_P3_D65_ST2084.icc<br>
-P3_PQ.icc<br>
+✅HDR_P3_D65_ST2084.icc<br>
+✅P3_PQ.icc<br>
 Method: ImageMagick conversion with embedded profiles<br>
 Output: Two HEIC files per input<br>
 2. SDR Base Export<br>
@@ -24,7 +24,7 @@ Dependencies: numpy, opencv-python, heif-enc, exiftool<br>
 Process:<br>
 Load 16-bit TIFF<br>
 Linearize PQ to Nits (using standard ST 2084 EOTF)<br>
-Generate SDR Base Image (ACES2.0 P3D65PQ1000_to_sRGB22.cube)<br>
+✅Generate SDR Base Image (ACES2.0 P3D65PQ1000_to_sRGB22.cube)<br>
 Calculate Gain Map (HDR Linear / SDR Linear)<br>
 Stitch Base + Gain Map using heif-enc<br>
 Inject Apple HDR Headroom metadata<br>
