@@ -38,6 +38,11 @@ filename_HDR_P3_D65_ST2084.heic
 filename_P3_PQ.heic
 filename_HDR_gain_map.heic
 
+### Reference
+<https://developer.apple.com/videos/play/wwdc2023/10181/>
+<https://developer.apple.com/documentation/UIKit/supporting-hdr-images-in-your-app>
+<https://developer.apple.com/documentation/appkit/applying-apple-hdr-effect-to-your-photos>
+
 ## Preview Gallery only : You must load HEIC files from "convert" folder on your device to see the result
 
 ### Image 00
