@@ -32,10 +32,11 @@ Load 16-bit TIFF<br>
 Output: All files saved to converted/ subfolder<br>
 Naming: <filename>_<profile_name>.heic<br>
 
-Generated Files in "test_image/converted" folder<br>
+### Generated Files in "test_image/converted" folder<br>
+
 filename_HDR_P3_D65_ST2084.heic<br>
 filename_P3_PQ.heic<br>
-filename_HDR_gain_map.heic<br>
+filename_HDR_gain_map.heic ( with tmp gain map for preview in /gainmap folder)<br>
 
 ### Reference
 

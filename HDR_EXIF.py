@@ -301,7 +301,7 @@ def convert_to_heif_gainmap(input_file, output_file, profile_name):
 
         # 3. Create SDR Base Image
         # Use 3D LUT for Tone Mapping (ACES P3D65 to sRGB)
-        lut_filename = "ACES20_P3D65PQ1000_to_sRGB22.cube"
+        lut_filename = "ACES20_P3D65PQ1000_to_sRGBPW.cube"
         script_dir = os.path.dirname(os.path.abspath(__file__))
         lut_path = os.path.join(script_dir, lut_filename)
         
@@ -362,9 +362,10 @@ def convert_to_heif_gainmap(input_file, output_file, profile_name):
         cv2.imwrite(temp_gain, gain_map_resized, [cv2.IMWRITE_JPEG_QUALITY, 85])
         
         # Save gain maps to /gainmap folder for study
-        # Create gainmap folder in the same directory as output file
+        # Create gainmap folder at the same level as the source directory
         output_dir = os.path.dirname(output_file)
-        gainmap_dir = os.path.join(os.path.dirname(output_dir), "gainmap")
+        source_parent_dir = os.path.dirname(os.path.dirname(output_dir))
+        gainmap_dir = os.path.join(source_parent_dir, "gainmap")
         os.makedirs(gainmap_dir, exist_ok=True)
         
         # Generate gain map filenames based on output filename
@@ -470,8 +471,9 @@ def process_directory(directory):
     # Get the script directory to locate ICC profiles
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # Create "converted" subfolder for output files
-    converted_dir = os.path.join(directory, "converted")
+    # Create "converted" folder at the same level as the source directory
+    parent_dir = os.path.dirname(os.path.abspath(directory))
+    converted_dir = os.path.join(parent_dir, "converted")
     os.makedirs(converted_dir, exist_ok=True)
     
     # Define supported image file extensions
@@ -706,8 +708,9 @@ def main():
             # Get the directory containing the input file
             input_dir = os.path.dirname(os.path.abspath(input_path))
             
-            # Create "converted" subfolder for output files
-            converted_dir = os.path.join(input_dir, "converted")
+            # Create "converted" folder at the same level as the source directory
+            parent_dir = os.path.dirname(input_dir)
+            converted_dir = os.path.join(parent_dir, "converted")
             os.makedirs(converted_dir, exist_ok=True)
             
             # Get base filename without extension
