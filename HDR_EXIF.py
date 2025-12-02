@@ -301,7 +301,7 @@ def convert_to_heif_gainmap(input_file, output_file, profile_name):
 
         # 3. Create SDR Base Image
         # Use 3D LUT for Tone Mapping (ACES P3D65 to sRGB)
-        lut_filename = "ACES20_P3D65PQ1000_to_sRGBPW.cube"
+        lut_filename = "ACES20_P3D65PQ1000D60_to_sRGBPW.cube"
         script_dir = os.path.dirname(os.path.abspath(__file__))
         lut_path = os.path.join(script_dir, lut_filename)
         
