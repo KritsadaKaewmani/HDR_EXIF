@@ -37,7 +37,7 @@ Naming: <filename>_<profile_name>.heic<br>
 filename_HDR_P3_D65_ST2084.heic<br>
 filename_P3_PQ.heic<br>
 filename_HDR_gain_map.heic ( with tmp gain map for preview in /gainmap folder)<br>
-🚧 something happend to the gain map version, color shifted to yellow i'm still working on it
+🚧 Something happened to the gain map version; the color shifted to yellow. I'm still working on it.
 
 ### Reference
 
@@ -52,9 +52,10 @@ filename_HDR_gain_map.heic ( with tmp gain map for preview in /gainmap folder)<b
 [Sample Sony Files](https://sony-cinematography.com/testfootage/)<br>
 [Sample Nikon Files](https://www.nikonusa.com/content/Zcinema-raw-file-downloads?srsltid=AfmBOopITr6b7WNFmGfOC9YJInmeEPrTD-cAvlwmmigKjYxMOHG9AIiI)
 
-## Preview Gallery only : <br>
+## PNG Preview Gallery for Overall Idea:<br>
 
-You must load HEIC files from "test_image/converted" folder on your device to see the result
+You must load HEIC files from the "test_image/converted" folder on your device to see the results.
+The script is not verified yet; it's my playground to experiment with HEIC, ICC profiles, and gain maps. You may regularly see the color change.
 
 ### Image 00
 
