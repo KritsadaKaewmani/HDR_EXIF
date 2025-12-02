@@ -1,10 +1,14 @@
 # Python for HDR EXIF learning
 
-HDR_EXIF.py Modifications
-Overview
-Modified
-HDR_EXIF.py
- to implement a robust HDR workflow with three export options, including a true SDR Base implementation.
+Usage
+
+# Activate virtual environment (required for numpy/cv2)
+
+source .venv/bin/activate
+
+# Run script
+
+python3 HDR_EXIF.py <input_file_or_directory>
 
 Key Features
 
@@ -32,7 +36,7 @@ Applied to: All three export versions<br>
 Output: All files saved to converted/ subfolder<br>
 Naming: <filename>_<profile_name>.heic<br>
 
-Generated Files in "convert" folder<br>
+Generated Files in "test_image/converted" folder<br>
 filename_HDR_P3_D65_ST2084.heic<br>
 filename_P3_PQ.heic<br>
 filename_HDR_gain_map.heic<br>
@@ -43,7 +47,7 @@ filename_HDR_gain_map.heic<br>
 <https://developer.apple.com/documentation/UIKit/supporting-hdr-images-in-your-app>
 <https://developer.apple.com/documentation/appkit/applying-apple-hdr-effect-to-your-photos>
 
-## Preview Gallery only : You must load HEIC files from "convert" folder on your device to see the result
+## Preview Gallery only : You must load HEIC files from "test_image/converted" folder on your device to see the result
 
 ### Image 00
 
@@ -188,13 +192,3 @@ filename_HDR_gain_map.heic<br>
 | P3D65PQ | P3 PQ | SDR Base | Gain Map |
 |---|---|---|---|
 | ![](test_image/preview/Src_HDR_P3D65PQ_23_SaveAs_HDR_P3_D65_ST2084.png) | ![](test_image/preview/Src_HDR_P3D65PQ_23_SaveAs_P3_PQ.png) | ![](test_image/preview/Src_HDR_P3D65PQ_23_SaveAs_HDR_gain_map.png) | ![](test_image/gainmap/Src_HDR_P3D65PQ_23_SaveAs_HDR_gain_map_gainmap_full.jpg) |
-
-Usage
-
-# Activate virtual environment (required for numpy/cv2)
-
-source .venv/bin/activate
-
-# Run script
-
-python3 HDR_EXIF.py <input_file_or_directory>
