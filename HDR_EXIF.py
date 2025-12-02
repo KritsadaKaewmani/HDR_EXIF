@@ -362,10 +362,10 @@ def convert_to_heif_gainmap(input_file, output_file, profile_name):
         cv2.imwrite(temp_gain, gain_map_resized, [cv2.IMWRITE_JPEG_QUALITY, 85])
         
         # Save gain maps to /gainmap folder for study
-        # Create gainmap folder at the same level as the source directory
+        # Create gainmap folder at the same level as the converted directory
         output_dir = os.path.dirname(output_file)
-        source_parent_dir = os.path.dirname(os.path.dirname(output_dir))
-        gainmap_dir = os.path.join(source_parent_dir, "gainmap")
+        parent_dir = os.path.dirname(output_dir)
+        gainmap_dir = os.path.join(parent_dir, "gainmap")
         os.makedirs(gainmap_dir, exist_ok=True)
         
         # Generate gain map filenames based on output filename
