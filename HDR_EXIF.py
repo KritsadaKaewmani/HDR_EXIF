@@ -13,7 +13,7 @@ Purpose:
     - Support both single file and batch directory processing
 
 Usage:
-    python HDR_EXIF.py <input_file_or_directory> <icc_profile_path>
+    python HDR_EXIF.py <input_file_or_directory>
 
 Requirements:
     - ImageMagick 7+ installed at /opt/homebrew/bin/magick
@@ -34,7 +34,7 @@ import sys          # System-specific parameters and functions (command-line arg
 # CORE CONVERSION FUNCTION
 # ============================================================================
 
-def convert_to_heif_with_icc(input_file, output_file, icc_profile):
+def convert_to_heif_with_icc(input_file, output_file, icc_profile, profile_name):
     """
     Convert an image file to HEIF format with ICC profile embedding.
     
@@ -45,6 +45,7 @@ def convert_to_heif_with_icc(input_file, output_file, icc_profile):
         input_file (str): Path to the source image file
         output_file (str): Path where the HEIF file will be saved
         icc_profile (str): Path to the ICC color profile to embed
+        profile_name (str): Name of the ICC profile for display purposes
     
     Technical Details:
         - Bit Depth: 10-bit for HDR support (vs standard 8-bit)
@@ -93,7 +94,7 @@ def convert_to_heif_with_icc(input_file, output_file, icc_profile):
     try:
         subprocess.run(convert_cmd, check=True, capture_output=True, text=True)
         print(f"✓ Successfully converted: {os.path.basename(input_file)} → {os.path.basename(output_file)}")
-        print(f"  Settings: 10-bit, 4:4:4 chroma, quality 100, ICC profile embedded")
+        print(f"  Settings: 10-bit, 4:4:4 chroma, quality 100, ICC profile: {profile_name}")
     except subprocess.CalledProcessError as e:
         # Provide detailed error information if conversion fails
         print(f"✗ Error converting {input_file}:")
@@ -106,17 +107,16 @@ def convert_to_heif_with_icc(input_file, output_file, icc_profile):
 # BATCH PROCESSING FUNCTION
 # ============================================================================
 
-def process_directory(directory, icc_profile):
+def process_directory(directory):
     """
     Process all supported image files in a directory.
     
     Recursively finds and converts all image files with supported extensions
-    in the specified directory. Each file is converted to HEIF with the same
-    base name but .heic extension.
+    in the specified directory. Each file is converted to HEIF twice, once for
+    each ICC profile, with the profile name appended to the output filename.
     
     Parameters:
         directory (str): Path to directory containing images
-        icc_profile (str): Path to ICC profile to embed in all conversions
     
     Supported Formats:
         - TIFF (.tif, .tiff) - Common for professional/HDR workflows
@@ -126,6 +126,20 @@ def process_directory(directory, icc_profile):
     Returns:
         tuple: (successful_count, failed_count, skipped_count)
     """
+    
+    # Define ICC profiles to use for conversion
+    # Each tuple contains (profile_filename, profile_display_name)
+    ICC_PROFILES = [
+        ("HDR_P3_D65_ST2084.icc", "HDR_P3_D65_ST2084"),
+        ("P3_PQ.icc", "P3_PQ")
+    ]
+    
+    # Get the script directory to locate ICC profiles
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Create "converted" subfolder for output files
+    converted_dir = os.path.join(directory, "converted")
+    os.makedirs(converted_dir, exist_ok=True)
     
     # Define supported image file extensions
     # Using lowercase for case-insensitive matching
@@ -161,25 +175,52 @@ def process_directory(directory, icc_profile):
     for idx, filename in enumerate(image_files, 1):
         # Construct full file paths
         file_path = os.path.join(directory, filename)
-        output_file = os.path.splitext(file_path)[0] + ".heic"
+        base_name = os.path.splitext(filename)[0]
         
-        # Skip if output file already exists
-        if os.path.exists(output_file):
-            print(f"[{idx}/{len(image_files)}] ⊘ Skipping {filename} (output already exists)")
-            skipped += 1
-            continue
-        
-        # Attempt conversion
         print(f"[{idx}/{len(image_files)}] Processing: {filename}")
-        try:
-            convert_to_heif_with_icc(file_path, output_file, icc_profile)
-            successful += 1
-        except subprocess.CalledProcessError:
-            print(f"  ✗ Failed to convert {filename}")
-            failed += 1
-        except Exception as e:
-            print(f"  ✗ Unexpected error: {e}")
-            failed += 1
+        
+        # Convert with each ICC profile
+        file_successful = 0
+        file_failed = 0
+        file_skipped = 0
+        
+        for profile_filename, profile_name in ICC_PROFILES:
+            # Construct ICC profile path
+            icc_profile_path = os.path.join(script_dir, profile_filename)
+            
+            # Validate ICC profile exists
+            if not os.path.isfile(icc_profile_path):
+                print(f"  ✗ ICC profile not found: {profile_filename}")
+                file_failed += 1
+                continue
+            
+            # Generate output filename with profile name appended in converted subfolder
+            output_file = os.path.join(converted_dir, f"{base_name}_{profile_name}.heic")
+            
+            # Skip if output file already exists
+            if os.path.exists(output_file):
+                print(f"  ⊘ Skipping {profile_name} (output already exists)")
+                file_skipped += 1
+                continue
+            
+            # Attempt conversion
+            try:
+                convert_to_heif_with_icc(file_path, output_file, icc_profile_path, profile_name)
+                file_successful += 1
+            except subprocess.CalledProcessError:
+                print(f"  ✗ Failed to convert with {profile_name}")
+                file_failed += 1
+            except Exception as e:
+                print(f"  ✗ Unexpected error with {profile_name}: {e}")
+                file_failed += 1
+        
+        # Update overall counters
+        if file_successful > 0:
+            successful += file_successful
+        if file_failed > 0:
+            failed += file_failed
+        if file_skipped > 0:
+            skipped += file_skipped
         
         print()  # Blank line for readability
     
@@ -198,32 +239,37 @@ def process_directory(directory, icc_profile):
 # INPUT VALIDATION FUNCTIONS
 # ============================================================================
 
-def validate_icc_profile(icc_profile_path):
+def validate_icc_profiles():
     """
-    Validate that the ICC profile file exists and is readable.
-    
-    Parameters:
-        icc_profile_path (str): Path to ICC profile file
+    Validate that the required ICC profile files exist and are readable.
     
     Returns:
-        bool: True if valid, False otherwise
+        bool: True if all profiles are valid, False otherwise
     """
-    if not os.path.isfile(icc_profile_path):
-        print(f"✗ Error: ICC profile not found: {icc_profile_path}")
-        return False
+    # Get the script directory
+    script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    if not os.access(icc_profile_path, os.R_OK):
-        print(f"✗ Error: ICC profile is not readable: {icc_profile_path}")
-        return False
+    # Define required ICC profiles
+    required_profiles = ["HDR_P3_D65_ST2084.icc", "P3_PQ.icc"]
     
-    # Check file extension (common ICC extensions)
-    if not icc_profile_path.lower().endswith(('.icc', '.icm')):
-        print(f"⚠ Warning: File may not be an ICC profile (expected .icc or .icm extension)")
-        response = input("Continue anyway? (y/n): ")
-        if response.lower() != 'y':
-            return False
+    all_valid = True
+    for profile_filename in required_profiles:
+        icc_profile_path = os.path.join(script_dir, profile_filename)
+        
+        if not os.path.isfile(icc_profile_path):
+            print(f"✗ Error: ICC profile not found: {profile_filename}")
+            print(f"  Expected location: {icc_profile_path}")
+            all_valid = False
+            continue
+        
+        if not os.access(icc_profile_path, os.R_OK):
+            print(f"✗ Error: ICC profile is not readable: {profile_filename}")
+            all_valid = False
+            continue
+        
+        print(f"✓ Found ICC profile: {profile_filename}")
     
-    return True
+    return all_valid
 
 
 def validate_input_path(input_path):
@@ -264,30 +310,37 @@ def main():
     # --- Command-Line Argument Validation ---
     # sys.argv[0] = script name
     # sys.argv[1] = input path (file or directory)
-    # sys.argv[2] = ICC profile path
     
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 2:
         print("\n" + "="*70)
         print("HDR HEIF Converter with ICC Profile Embedding")
         print("="*70)
         print("\nUsage:")
-        print(f"  python {os.path.basename(__file__)} <input_file_or_directory> <icc_profile>")
+        print(f"  python {os.path.basename(__file__)} <input_file_or_directory>")
         print("\nArguments:")
         print("  input_file_or_directory  Path to image file or directory of images")
-        print("  icc_profile              Path to ICC color profile (.icc or .icm)")
+        print("\nICC Profiles Used:")
+        print("  - HDR_P3_D65_ST2084.icc")
+        print("  - P3_PQ.icc")
+        print("\nOutput:")
+        print("  Files are saved in a 'converted' subfolder:")
+        print("  - converted/<filename>_HDR_P3_D65_ST2084.heic")
+        print("  - converted/<filename>_P3_PQ.heic")
         print("\nExamples:")
-        print(f"  python {os.path.basename(__file__)} image.tiff Display-P3.icc")
-        print(f"  python {os.path.basename(__file__)} ./images/ Rec2020-PQ.icc")
+        print(f"  python {os.path.basename(__file__)} image.tiff")
+        print(f"  python {os.path.basename(__file__)} ./images/")
         print("="*70 + "\n")
         sys.exit(1)
     
     # Extract command-line arguments
     input_path = sys.argv[1]
-    icc_profile = sys.argv[2]
     
-    # --- Validate ICC Profile ---
-    if not validate_icc_profile(icc_profile):
+    # --- Validate ICC Profiles ---
+    print("\nValidating ICC profiles...")
+    if not validate_icc_profiles():
+        print("\n✗ ICC profile validation failed. Please ensure the required ICC profiles are in the script directory.")
         sys.exit(1)
+    print()
     
     # --- Validate Input Path ---
     path_type = validate_input_path(input_path)
@@ -296,35 +349,60 @@ def main():
     
     # --- Process Based on Input Type ---
     try:
+        # Get the script directory to locate ICC profiles
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Define ICC profiles
+        ICC_PROFILES = [
+            ("HDR_P3_D65_ST2084.icc", "HDR_P3_D65_ST2084"),
+            ("P3_PQ.icc", "P3_PQ")
+        ]
+        
         if path_type == 'file':
             # Single file conversion
             print(f"\nMode: Single file conversion")
-            print(f"Input: {input_path}")
-            print(f"ICC Profile: {icc_profile}\n")
+            print(f"Input: {input_path}\n")
             
-            # Generate output filename (same name, .heic extension)
-            output_path = os.path.splitext(input_path)[0] + ".heic"
+            # Get the directory containing the input file
+            input_dir = os.path.dirname(os.path.abspath(input_path))
             
-            # Check if output already exists
-            if os.path.exists(output_path):
-                print(f"⚠ Warning: Output file already exists: {output_path}")
-                response = input("Overwrite? (y/n): ")
-                if response.lower() != 'y':
-                    print("Conversion cancelled.")
-                    sys.exit(0)
+            # Create "converted" subfolder for output files
+            converted_dir = os.path.join(input_dir, "converted")
+            os.makedirs(converted_dir, exist_ok=True)
             
-            # Perform conversion
-            convert_to_heif_with_icc(input_path, output_path, icc_profile)
-            print(f"\n✓ Conversion complete: {output_path}\n")
+            # Get base filename without extension
+            base_name = os.path.splitext(os.path.basename(input_path))[0]
+            
+            # Convert with each ICC profile
+            for profile_filename, profile_name in ICC_PROFILES:
+                # Construct ICC profile path
+                icc_profile_path = os.path.join(script_dir, profile_filename)
+                
+                # Generate output filename with profile name appended in converted subfolder
+                output_path = os.path.join(converted_dir, f"{base_name}_{profile_name}.heic")
+                
+                # Check if output already exists
+                if os.path.exists(output_path):
+                    print(f"⚠ Warning: Output file already exists: {output_path}")
+                    response = input("Overwrite? (y/n): ")
+                    if response.lower() != 'y':
+                        print(f"Skipping {profile_name} conversion.")
+                        continue
+                
+                # Perform conversion
+                print(f"Converting with {profile_name}...")
+                convert_to_heif_with_icc(input_path, output_path, icc_profile_path, profile_name)
+                print()
+            
+            print(f"✓ All conversions complete\n")
         
         elif path_type == 'directory':
             # Batch directory processing
             print(f"\nMode: Batch directory processing")
             print(f"Input directory: {input_path}")
-            print(f"ICC Profile: {icc_profile}")
             
             # Process all images in directory
-            successful, failed, skipped = process_directory(input_path, icc_profile)
+            successful, failed, skipped = process_directory(input_path)
             
             # Exit with error code if any conversions failed
             if failed > 0:
