@@ -8,37 +8,37 @@ HDR_EXIF.py
 
 Key Features
 
-1. Dual ICC Profile Export
-Profiles:
-HDR_P3_D65_ST2084.icc
- and
-P3_PQ.icc
-Method: ImageMagick conversion with embedded profiles
-Output: Two HEIC files per input
-2. SDR Base Export
-Method: Full gain map generation pipeline
-Dependencies: numpy, opencv-python, heif-enc, exiftool
-Process:
-Load 16-bit TIFF
-Linearize PQ to Nits (using standard ST 2084 EOTF)
-Generate SDR Base Image (ACES2.0 P3D65PQ1000_to_sRGB22.cube)
-Calculate Gain Map (HDR Linear / SDR Linear)
-Stitch Base + Gain Map using heif-enc
-Inject Apple HDR Headroom metadata
-3. Text Overlay
-Style: Arial font, 15px size, Gray 0.5 text on Black highlight
-Content: Displays the profile name (e.g., "HDR_gain_map")
-Applied to: All three export versions
-4. Organization
-Output: All files saved to converted/ subfolder
-Naming: <filename>_<profile_name>.heic
+1. Dual ICC Profile Export<br>
+Profiles:<br>
+HDR_P3_D65_ST2084.icc<br>
+P3_PQ.icc<br>
+Method: ImageMagick conversion with embedded profiles<br>
+Output: Two HEIC files per input<br>
+2. SDR Base Export<br>
+Method: Full gain map generation pipeline<br>
+Dependencies: numpy, opencv-python, heif-enc, exiftool<br>
+Process:<br>
+Load 16-bit TIFF<br>
+Linearize PQ to Nits (using standard ST 2084 EOTF)<br>
+Generate SDR Base Image (ACES2.0 P3D65PQ1000_to_sRGB22.cube)<br>
+Calculate Gain Map (HDR Linear / SDR Linear)<br>
+Stitch Base + Gain Map using heif-enc<br>
+Inject Apple HDR Headroom metadata<br>
+3. Text Overlay<br>
+Style: Arial font, 15px size, Gray 0.5 text on Black highlight<br>
+Content: Displays the profile name (e.g., "HDR_gain_map")<br>
+Applied to: All three export versions<br>
+4. Organization<br>
+Output: All files saved to converted/ subfolder<br>
+Naming: <filename>_<profile_name>.heic<br>
 
-Generated Files
-filename_HDR_P3_D65_ST2084.heic
-filename_P3_PQ.heic
-filename_HDR_gain_map.heic
+Generated Files in "convert" folder<br>
+filename_HDR_P3_D65_ST2084.heic<br>
+filename_P3_PQ.heic<br>
+filename_HDR_gain_map.heic<br>
 
 ### Reference
+
 <https://developer.apple.com/videos/play/wwdc2023/10181/>
 <https://developer.apple.com/documentation/UIKit/supporting-hdr-images-in-your-app>
 <https://developer.apple.com/documentation/appkit/applying-apple-hdr-effect-to-your-photos>
