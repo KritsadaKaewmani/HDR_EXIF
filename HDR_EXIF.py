@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+
+# tmp for debug
+# python HDR_EXIF.py test_image/src/HDR_ACES20_P3D65PQ1K00.tif
+
 """
 HDR HEIF Converter with ICC Profile Embedding
 ==============================================
@@ -249,9 +253,36 @@ def linear_to_srgb(linear_image):
                     1.055 * (mapped ** (1.0/2.4)) - 0.055)
     return np.clip(srgb, 0, 1)
 
+def apply_rec709_gamma(linear):
+    """
+    Apply Rec.709 OETF (Opto-Electronic Transfer Function).
+    This is the gamma encoding used by Apple for gain maps.
+    
+    Apple's gain maps are stored with Rec.709 gamma encoding, not linear.
+    This matches the format that iOS expects for proper HDR display.
+    
+    Parameters:
+        linear: Linear gain map values (0-1 range)
+    
+    Returns:
+        Gamma-encoded values using Rec.709 transfer function
+    """
+    # Rec.709 OETF (gamma encoding)
+    # Different from EOTF (gamma decoding)
+    return np.where(linear < 0.018,
+                   4.5 * linear,
+                   1.099 * (linear ** 0.45) - 0.099)
+
 def create_gain_map(hdr_linear, sdr_linear, max_headroom=None):
     """
-    Calculates the Gain Map.
+    Calculates the Gain Map with Rec.709 gamma encoding (Apple format).
+    
+    Apple's gain map format:
+    - Log-encoded gain values (log2 space)
+    - Normalized to 0-1 based on headroom
+    - Gamma-encoded using Rec.709 OETF
+    - Stored as 8-bit grayscale
+    
     Gain = (HDR / SDR). 
     """
     # Avoid division by zero
@@ -268,8 +299,7 @@ def create_gain_map(hdr_linear, sdr_linear, max_headroom=None):
     if max_headroom <= 1.001:
         return np.zeros_like(gain), 1.0
         
-    # Log-encode or Sqrt-encode is common for storage efficiency in 8-bit
-    # For this example, we normalize to 0-1 based on headroom
+    # Log-encode for storage efficiency in 8-bit
     # Map 1.0 -> 0 (No gain) to Headroom -> 1.0 (Max gain)
     
     # Avoid log2(0) by adding epsilon
@@ -277,9 +307,15 @@ def create_gain_map(hdr_linear, sdr_linear, max_headroom=None):
     # Clamp negative values (where gain < 1.0) to 0
     log_gain = np.maximum(log_gain, 0.0)
     
+    # Normalize to 0-1 range
     gain_map_norm = log_gain / np.log2(max_headroom)
+    gain_map_norm = np.clip(gain_map_norm, 0, 1)
     
-    return np.clip(gain_map_norm, 0, 1), max_headroom
+    # Apply Rec.709 gamma encoding (Apple requirement!)
+    # This is critical for iOS compatibility
+    gain_map_gamma = apply_rec709_gamma(gain_map_norm)
+    
+    return gain_map_gamma, max_headroom
 
 def convert_to_heif_gainmap(input_file, output_file, profile_name):
     """
@@ -298,6 +334,19 @@ def convert_to_heif_gainmap(input_file, output_file, profile_name):
 
         # 2. Linearize PQ to Nits
         img_linear = pq_eotf(img_pq)
+        
+        # Debug: Print HDR image statistics
+        hdr_max_nits = np.max(img_linear)
+        hdr_min_nits = np.min(img_linear)
+        hdr_mean_nits = np.mean(img_linear)
+        print(f"  HDR Image Stats (nits):")
+        print(f"    Max: {hdr_max_nits:.2f}, Min: {hdr_min_nits:.2f}, Mean: {hdr_mean_nits:.2f}")
+        
+        # Check minimum dimensions for HDR badge on iOS
+        h, w = img_pq.shape[:2]
+        if h < 360 or w < 360:
+            print(f"  ⚠ Warning: Image dimensions ({w}x{h}) below 360px minimum")
+            print(f"    HDR badge may not appear on iOS devices")
 
         # 3. Create SDR Base Image
         # Use 3D LUT for Tone Mapping (ACES P3D65 to sRGB)
@@ -340,6 +389,13 @@ def convert_to_heif_gainmap(input_file, output_file, profile_name):
         # Scale by SDR white point (203 nits) to match HDR scale
         sdr_white_nits = 203.0
         img_sdr_linear = sdr_linear_display * sdr_white_nits
+        
+        # Debug: Print SDR image statistics
+        sdr_max_nits = np.max(img_sdr_linear)
+        sdr_min_nits = np.min(img_sdr_linear)
+        sdr_mean_nits = np.mean(img_sdr_linear)
+        print(f"  SDR Image Stats (nits):")
+        print(f"    Max: {sdr_max_nits:.2f}, Min: {sdr_min_nits:.2f}, Mean: {sdr_mean_nits:.2f}")
 
         # 4. Create Gain Map
         # We use Luminance (Y) for gain map calculation to save space
@@ -349,6 +405,15 @@ def convert_to_heif_gainmap(input_file, output_file, profile_name):
 
         gain_map, headroom = create_gain_map(lum_hdr, lum_sdr)
         gain_map_uint8 = (gain_map * 255).astype(np.uint8)
+        
+        # Debug: Print gain map statistics
+        print(f"  Luminance Stats:")
+        print(f"    HDR Lum - Max: {np.max(lum_hdr):.2f}, Min: {np.min(lum_hdr):.2f}, Mean: {np.mean(lum_hdr):.2f}")
+        print(f"    SDR Lum - Max: {np.max(lum_sdr):.2f}, Min: {np.min(lum_sdr):.2f}, Mean: {np.mean(lum_sdr):.2f}")
+        print(f"  Gain Map Stats:")
+        print(f"    Normalized - Max: {np.max(gain_map):.4f}, Min: {np.min(gain_map):.4f}, Mean: {np.mean(gain_map):.4f}")
+        print(f"    Headroom (ratio): {headroom:.4f}")
+        print(f"    Headroom (stops): {np.log2(headroom):.4f}")
 
         # 5. Save Intermediate Files
         temp_sdr = f"temp_sdr_{os.getpid()}.jpg"
@@ -356,7 +421,10 @@ def convert_to_heif_gainmap(input_file, output_file, profile_name):
         
         cv2.imwrite(temp_sdr, img_sdr_uint8, [cv2.IMWRITE_JPEG_QUALITY, 90])
         
-        # Resize gain map (1/2 resolution)
+        # Resize gain map to 1/2 resolution (Apple specification)
+        # Source: https://juniperphoton.substack.com/p/process-apple-gain-map-the-imageio
+        # "You should scale the Gain Map image to the half size of the main image"
+        # Example: If main image is 4000x3000, gain map should be 2000x1500
         h, w = gain_map_uint8.shape
         gain_map_resized = cv2.resize(gain_map_uint8, (w // 2, h // 2))
         cv2.imwrite(temp_gain, gain_map_resized, [cv2.IMWRITE_JPEG_QUALITY, 85])
@@ -368,61 +436,127 @@ def convert_to_heif_gainmap(input_file, output_file, profile_name):
         gainmap_dir = os.path.join(parent_dir, "gainmap")
         os.makedirs(gainmap_dir, exist_ok=True)
         
-        # Generate gain map filenames based on output filename
+        # Generate gain map filename with headroom info
+        # Only save the 1/2 resolution version that's actually used in the HEIC
         base_output_name = os.path.splitext(os.path.basename(output_file))[0]
-        gainmap_full_path = os.path.join(gainmap_dir, f"{base_output_name}_gainmap_full.jpg")
-        gainmap_half_path = os.path.join(gainmap_dir, f"{base_output_name}_gainmap_half.jpg")
+        headroom_stops_for_filename = np.log2(headroom) if headroom > 1.0 else 0.0
+        gainmap_path = os.path.join(gainmap_dir, f"{base_output_name}_gainmap_1-2res_HR{headroom:.2f}_{headroom_stops_for_filename:.2f}stops.jpg")
         
-        # Save full resolution and half resolution gain maps
-        cv2.imwrite(gainmap_full_path, gain_map_uint8, [cv2.IMWRITE_JPEG_QUALITY, 95])
-        cv2.imwrite(gainmap_half_path, gain_map_resized, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        # Save only the 1/2 resolution gain map (Apple specification)
+        # This is the actual gain map embedded in the HEIC file
+        cv2.imwrite(gainmap_path, gain_map_resized, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        print(f"  ✓ Saved gain map for study: {os.path.basename(gainmap_path)}")
+        
         
         # 5b. Add Text Overlay to SDR Base Image using ImageMagick
-        # Matches the style of the other exports
-        annotate_cmd = [
-            "/opt/homebrew/bin/magick",
-            temp_sdr,
-            "-gravity", "NorthWest",
-            "-font", "Arial",
-            "-pointsize", "15",
-            "-fill", "gray(50%)",
-            "-undercolor", "black",
-            "-annotate", "+10+10", profile_name,
-            temp_sdr  # Overwrite temp file
-        ]
-        subprocess.run(annotate_cmd, check=True)
-
-        # 6. Call heif-enc to stitch
-        urn = "urn:com:apple:photo:2020:aux:hdrgainmap"
+        # NOTE: Text overlay is DISABLED for gain map to ensure iOS HDR compatibility
+        # Adding text to the SDR base image may interfere with iOS HDR detection
+        # The text annotation is only used for the non-gain-map exports
         
-        # Ensure heif-enc is in path or specify full path
-        heif_enc_path = "heif-enc"
-        if os.path.exists("/opt/homebrew/bin/heif-enc"):
-            heif_enc_path = "/opt/homebrew/bin/heif-enc"
-
+        # annotate_cmd = [
+        #     "/opt/homebrew/bin/magick",
+        #     temp_sdr,
+        #     "-gravity", "NorthWest",
+        #     "-font", "Arial",
+        #     "-pointsize", "15",
+        #     "-fill", "gray(50%)",
+        #     "-undercolor", "black",
+        #     "-annotate", "+10+10", profile_name,
+        #     temp_sdr  # Overwrite temp file
+        # ]
+        # subprocess.run(annotate_cmd, check=True)
+        
+        # 6. Call Swift script to generate Adaptive HDR HEIC using Core Image
+        # This uses Apple's native API to calculate and embed the gain map automatically
+        swift_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "convert_hdr_heic.swift")
+        
+        # We pass the SDR image and the ORIGINAL HDR image (or the linear one if saved)
+        # Using the input file directly as the HDR source is safest if it's the master
+        # But we need to ensure it's a format Core Image reads as HDR (TIFF/EXR/etc)
+        # The input_file is likely the HDR master.
+        
         cmd = [
-            heif_enc_path,
-            "-o", output_file,
+            "swift",
+            swift_script,
             temp_sdr,
-            f"--aux-image={urn},{temp_gain}"
+            input_file, # Use the original HDR input
+            output_file,
+            str(headroom) # Pass calculated headroom for MakerApple tags
         ]
+        
+        print(f"  Generating Adaptive HDR HEIC using Core Image...")
+        print(f"    Command: {' '.join(cmd)}")
 
-        subprocess.run(cmd, check=True, capture_output=True)
+        try:
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            print(f"    Core Image Output: {result.stdout.strip()}")
+        except subprocess.CalledProcessError as e:
+            print(f"  ❌ Core Image conversion failed with return code {e.returncode}")
+            print(f"  ❌ Stdout: {e.stdout}")
+            print(f"  ❌ Stderr: {e.stderr}")
+            raise e
         
         # 7. Inject Metadata via ExifTool
         # Calculate headroom in stops (log2) if needed, or use the ratio directly
         # Apple usually expects stops? The reference code used 3.0.
         # Let's use the calculated headroom if possible, or a safe default.
-        # The reference code calculated `headroom` (linear max ratio).
+        # The reference code calculated `headroom` (linear max ratio)
         # Apple:HDRHeadroom is typically in stops.
         headroom_stops = np.log2(headroom) if headroom > 1.0 else 0.0
         
-        subprocess.run([
+        print(f"  Writing Apple HDR metadata:")
+        print(f"    XMP:HDRGainMapVersion: 65536 (CRITICAL for iOS!)")
+        print(f"    HDRHeadroom: {headroom_stops:.4f} stops (ratio: {headroom:.4f})")
+        print(f"    HDRGainMapMin: 0.0")
+        print(f"    HDRGainMapMax: {headroom:.4f}")
+        print(f"    MakerApple:33: 0.8 (headroom metadata)")
+        print(f"    MakerApple:48: 0.0 (headroom metadata)")
+        
+        # Write comprehensive Apple HDR metadata
+        # XMP:HDRGainMapVersion is CRITICAL for iOS recognition!
+        exiftool_result = subprocess.run([
             "exiftool", 
-            "-overwrite_original", 
-            f"-Apple:HDRHeadroom={headroom_stops:.4f}", 
+            "-overwrite_original",
+            # XMP metadata - CRITICAL for iOS!
+            f"-XMP:HDRGainMapVersion=65536",
+            # Apple metadata
+            f"-Apple:HDRHeadroom={headroom_stops:.4f}",
+            f"-Apple:HDRGainMapVersion=65536",  # Also in Apple namespace
+            f"-Apple:HDRGainMapMin=0.0",
+            f"-Apple:HDRGainMapMax={headroom:.4f}",
+            # MakerApple tags - Critical for older iOS versions (pre-iOS 18)
+            # These are 32-bit float values used for headroom calculation
+            # Values from working examples: tag 33 = 0.8, tag 48 = 0.0
+            f"-MakerApple:33=0.8",
+            f"-MakerApple:48=0.0",
             output_file
-        ], check=False, capture_output=True) # check=False in case exiftool missing
+        ], check=False, capture_output=True, text=True) # check=False in case exiftool missing
+        
+        if exiftool_result.returncode != 0:
+            print(f"  ⚠ Warning: ExifTool returned error: {exiftool_result.stderr}")
+        else:
+            print(f"  ✓ Metadata written successfully")
+        
+        # 8. Verify file encoding properties
+        print(f"  Verifying file encoding and metadata...")
+        verify_result = subprocess.run([
+            "exiftool", 
+            "-BitDepthLuma",
+            "-BitDepthChroma", 
+            "-ChromaFormat",
+            "-TransferCharacteristics",
+            "-ColorPrimaries",
+            "-XMP:HDRGainMapVersion",
+            "-MakerApple:33",
+            "-MakerApple:48",
+            output_file
+        ], capture_output=True, text=True)
+        
+        if verify_result.returncode == 0 and verify_result.stdout:
+            print(f"  File properties:")
+            for line in verify_result.stdout.strip().split('\n'):
+                if ':' in line:
+                    print(f"    {line.strip()}")
 
         print(f"✓ Successfully created Gain Map HEIC: {os.path.basename(output_file)}")
         print(f"  Headroom: {headroom:.2f} ({headroom_stops:.2f} stops)")

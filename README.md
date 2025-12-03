@@ -71,6 +71,13 @@ The script is not verified yet; it's my playground to experiment with HEIC, ICC 
 ![](test_image/preview/Src_HDR_P3D65PQ_01_SaveAs_HDR_gain_map.png) <br>
 ![](test_image/gainmap/Src_HDR_P3D65PQ_01_SaveAs_HDR_gain_map_gainmap_full.jpg) <br>
 
+### Image 02
+
+![](test_image/preview/Src_HDR_P3D65PQ_02_SaveAs_HDR_P3_D65_ST2084.png) <br>
+![](test_image/preview/Src_HDR_P3D65PQ_02_SaveAs_P3_PQ.png) <br>
+![](test_image/preview/Src_HDR_P3D65PQ_02_SaveAs_HDR_gain_map.png) <br>
+![](test_image/gainmap/Src_HDR_P3D65PQ_02_SaveAs_HDR_gain_map_gainmap_full.jpg) <br>
+
 ### Image 03
 
 ![](test_image/preview/Src_HDR_P3D65PQ_03_SaveAs_HDR_P3_D65_ST2084.png) <br>
@@ -85,6 +92,13 @@ The script is not verified yet; it's my playground to experiment with HEIC, ICC 
 ![](test_image/preview/Src_HDR_P3D65PQ_04_SaveAs_HDR_gain_map.png) <br>
 ![](test_image/gainmap/Src_HDR_P3D65PQ_04_SaveAs_HDR_gain_map_gainmap_full.jpg) <br>
 
+### Image 05
+
+![](test_image/preview/Src_HDR_P3D65PQ_05_SaveAs_HDR_P3_D65_ST2084.png) <br>
+![](test_image/preview/Src_HDR_P3D65PQ_05_SaveAs_P3_PQ.png) <br>
+![](test_image/preview/Src_HDR_P3D65PQ_05_SaveAs_HDR_gain_map.png) <br>
+![](test_image/gainmap/Src_HDR_P3D65PQ_05_SaveAs_HDR_gain_map_gainmap_full.jpg) <br>
+
 ### Image 06
 
 ![](test_image/preview/Src_HDR_P3D65PQ_06_SaveAs_HDR_P3_D65_ST2084.png) <br>
@@ -92,9 +106,16 @@ The script is not verified yet; it's my playground to experiment with HEIC, ICC 
 ![](test_image/preview/Src_HDR_P3D65PQ_06_SaveAs_HDR_gain_map.png) <br>
 ![](test_image/gainmap/Src_HDR_P3D65PQ_06_SaveAs_HDR_gain_map_gainmap_full.jpg) <br>
 
+### Image 07
+
+![](test_image/preview/Src_HDR_P3D65PQ_07_SaveAs_HDR_P3_D65_ST2084.png) <br>
+![](test_image/preview/Src_HDR_P3D65PQ_07_SaveAs_P3_PQ.png) <br>
+![](test_image/preview/Src_HDR_P3D65PQ_07_SaveAs_HDR_gain_map.png) <br>
+![](test_image/gainmap/Src_HDR_P3D65PQ_07_SaveAs_HDR_gain_map_gainmap_full.jpg) <br>
+
 ### Image 08
 
-![](test_image/preview/Src_HDR_P3D65PQ_08_SaveAs_HDR_P3_D65_ST2084.png) <br>
+![](test_image/preview/Src_HDR_P3D65PQ_ 08_SaveAs_HDR_P3_D65_ST2084.png) <br>
 ![](test_image/preview/Src_HDR_P3D65PQ_08_SaveAs_P3_PQ.png) <br>
 ![](test_image/preview/Src_HDR_P3D65PQ_08_SaveAs_HDR_gain_map.png) <br>
 ![](test_image/gainmap/Src_HDR_P3D65PQ_08_SaveAs_HDR_gain_map_gainmap_full.jpg) <br>
@@ -106,37 +127,16 @@ The script is not verified yet; it's my playground to experiment with HEIC, ICC 
 ![](test_image/preview/Src_HDR_P3D65PQ_09_SaveAs_HDR_gain_map.png) <br>
 ![](test_image/gainmap/Src_HDR_P3D65PQ_09_SaveAs_HDR_gain_map_gainmap_full.jpg) <br>
 
+### Image 10
+
+![](test_image/preview/Src_HDR_P3D65PQ_10_SaveAs_HDR_P3_D65_ST2084.png) <br>
+![](test_image/preview/Src_HDR_P3D65PQ_10_SaveAs_P3_PQ.png) <br>
+![](test_image/preview/Src_HDR_P3D65PQ_10_SaveAs_HDR_gain_map.png) <br>
+![](test_image/gainmap/Src_HDR_P3D65PQ_10_SaveAs_HDR_gain_map_gainmap_full.jpg) <br>
+
 ### Image 11
 
 ![](test_image/preview/Src_HDR_P3D65PQ_11_SaveAs_HDR_P3_D65_ST2084.png) <br>
 ![](test_image/preview/Src_HDR_P3D65PQ_11_SaveAs_P3_PQ.png) <br>
 ![](test_image/preview/Src_HDR_P3D65PQ_11_SaveAs_HDR_gain_map.png) <br>
 ![](test_image/gainmap/Src_HDR_P3D65PQ_11_SaveAs_HDR_gain_map_gainmap_full.jpg) <br>
-
-### Image 12
-
-![](test_image/preview/Src_HDR_P3D65PQ_12_SaveAs_HDR_P3_D65_ST2084.png) <br>
-![](test_image/preview/Src_HDR_P3D65PQ_12_SaveAs_P3_PQ.png) <br>
-![](test_image/preview/Src_HDR_P3D65PQ_12_SaveAs_HDR_gain_map.png) <br>
-![](test_image/gainmap/Src_HDR_P3D65PQ_12_SaveAs_HDR_gain_map_gainmap_full.jpg) <br>
-
-### Image 13
-
-![](test_image/preview/Src_HDR_P3D65PQ_13_SaveAs_HDR_P3_D65_ST2084.png) <br>
-![](test_image/preview/Src_HDR_P3D65PQ_13_SaveAs_P3_PQ.png) <br>
-![](test_image/preview/Src_HDR_P3D65PQ_13_SaveAs_HDR_gain_map.png) <br>
-![](test_image/gainmap/Src_HDR_P3D65PQ_13_SaveAs_HDR_gain_map_gainmap_full.jpg) <br>
-
-### Image 15
-
-![](test_image/preview/Src_HDR_P3D65PQ_15_SaveAs_HDR_P3_D65_ST2084.png) <br>
-![](test_image/preview/Src_HDR_P3D65PQ_15_SaveAs_P3_PQ.png) <br>
-![](test_image/preview/Src_HDR_P3D65PQ_15_SaveAs_HDR_gain_map.png) <br>
-![](test_image/gainmap/Src_HDR_P3D65PQ_15_SaveAs_HDR_gain_map_gainmap_full.jpg) <br>
-
-### Image 21
-
-![](test_image/preview/Src_HDR_P3D65PQ_21_SaveAs_HDR_P3_D65_ST2084.png) <br>
-![](test_image/preview/Src_HDR_P3D65PQ_21_SaveAs_P3_PQ.png) <br>
-![](test_image/preview/Src_HDR_P3D65PQ_21_SaveAs_HDR_gain_map.png) <br>
-![](test_image/gainmap/Src_HDR_P3D65PQ_21_SaveAs_HDR_gain_map_gainmap_full.jpg) <br>
