@@ -273,7 +273,39 @@ def convert_to_heif_gainmap(input_file, output_file, mode='lut'):
         
         print(f"  Estimated Headroom: {estimated_headroom:.2f} ({np.log2(estimated_headroom):.2f} stops)")
 
-        # 3. Call Swift script
+        # 3. Calculate and save gain map as PNG (before calling Swift)
+        output_dir = os.path.dirname(output_file)
+        output_basename = os.path.splitext(os.path.basename(output_file))[0]
+        gainmap_png_path = os.path.join(output_dir, f"{output_basename}_gainmap.png")
+        
+        print(f"  Calculating gain map...")
+        # Calculate gain ratio per pixel: HDR / SDR
+        # Avoid division by zero
+        img_sdr_linear_safe = np.maximum(img_sdr_linear, 1e-6)
+        gain_map = img_linear / img_sdr_linear_safe
+        
+        # Clamp to reasonable range [1.0, estimated_headroom]
+        gain_map = np.clip(gain_map, 1.0, estimated_headroom)
+        
+        # Normalize to 0-1 range for visualization
+        # (gain - 1.0) / (max_gain - 1.0)
+        gain_map_normalized = (gain_map - 1.0) / max(estimated_headroom - 1.0, 0.01)
+        
+        # Apply gamma for better visualization (similar to log)
+        gain_map_gamma = np.power(gain_map_normalized, 0.5)
+        
+        # Boost for visibility
+        gain_map_boosted = gain_map_gamma * 3.0
+        gain_map_boosted = np.clip(gain_map_boosted, 0, 1)
+        
+        # Convert to 8-bit and save
+        gain_map_uint8 = (gain_map_boosted * 255).astype(np.uint8)
+        # Convert RGB to BGR for cv2
+        gain_map_bgr = cv2.cvtColor(gain_map_uint8, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(gainmap_png_path, gain_map_bgr)
+        print(f"  ✓ Gain map saved: {gainmap_png_path}")
+
+        # 4. Call Swift script (without gain map generation)
         script_dir = os.path.dirname(os.path.abspath(__file__))
         swift_script = os.path.join(script_dir, "convert_hdr_heic.swift")
         
@@ -284,12 +316,13 @@ def convert_to_heif_gainmap(input_file, output_file, mode='lut'):
             temp_p3_pq,        # HDR image (P3 PQ)
             output_file,       # Output HEIC path
             str(estimated_headroom)
+            # Note: removed gainmap_png_path - we generate it in Python now
         ]
         
         print(f"  Running Swift conversion...")
         try:
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-            # print(f"    Swift Output: {result.stdout.strip()}")
+            print(f"{result.stdout.strip()}")
         except subprocess.CalledProcessError as e:
             print(f"  ❌ Swift conversion failed: {e.stderr}")
             raise e

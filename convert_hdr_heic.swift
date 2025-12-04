@@ -80,30 +80,28 @@ let context = CIContext(options: [.workingColorSpace: hdrColorSpace])
 var options: [CIImageRepresentationOption: Any] = [:]
 options[.hdrImage] = hdrImage
 
-// Use sRGB color space for the SDR base image
-// sdrColorSpace is already defined above
-
 // 5. Write HEIF with Adaptive Gain Map
-do {
-    try context.writeHEIFRepresentation(of: sdrImage,
-                                      to: outputURL,
-                                      format: .RGBA8,
-                                      colorSpace: sdrColorSpace,
-                                      options: options)
-    
-    print("Successfully created Adaptive HDR HEIC")
-    print("  SDR Base: \(sdrPath)")
-    print("  HDR Reference: \(hdrPath)")
-    print("  Output: \(outputPath)")
-    print("  Headroom: \(String(format: "%.2f", headroom)) (\(String(format: "%.2f", log2(headroom))) stops)")
-    print("  Method: Core Image Adaptive Gain Map")
-    exit(0)
-} catch {
-    print("Error writing HEIC: \(error)")
-    print("  This may indicate:")
-    print("  - Invalid input image format")
-    print("  - Insufficient permissions")
-    print("  - Disk space issues")
-    exit(1)
-}
+    do {
+        try context.writeHEIFRepresentation(of: sdrImage,
+                                          to: outputURL,
+                                          format: .RGBA8,
+                                          colorSpace: sdrColorSpace,
+                                          options: options)
+        
+        print("Successfully created Adaptive HDR HEIC")
+        print("  SDR Base: \(sdrPath)")
+        print("  HDR Reference: \(hdrPath)")
+        print("  Output: \(outputPath)")
+        print("  Headroom: \(String(format: "%.2f", headroom)) (\(String(format: "%.2f", log2(headroom))) stops)")
+        print("  Method: Core Image Adaptive Gain Map")
+        
+        exit(0)
+    } catch {
+        print("Error writing HEIC: \(error)")
+        print("  This may indicate:")
+        print("  - Invalid input image format")
+        print("  - Insufficient permissions")
+        print("  - Disk space issues")
+        exit(1)
+    }
 
