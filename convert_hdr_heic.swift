@@ -1,5 +1,55 @@
 #!/usr/bin/env swift
 
+/*
+ HDR HEIC Gain Map Generator using Core Image
+ =============================================
+ 
+ PURPOSE:
+ --------
+ This Swift script creates HEIC files with adaptive gain maps using
+ Apple's Core Image framework. It demonstrates the native macOS/iOS
+ approach to HDR image encoding.
+ 
+ CORE IMAGE GAIN MAP:
+ --------------------
+ When .hdrImage option is provided to writeHEIFRepresentation:
+ - Core Image automatically calculates the gain map
+ - Gain map = ratio between HDR and SDR representations
+ - Encoded using Rec.709 gamma (not linear)
+ - Typically scaled to 1/2 resolution for efficiency
+ - Embedded as auxiliary image with proper metadata
+ 
+ TWO MODES:
+ ----------
+ 1. External SDR (sdrPath = file path):
+    - Uses pre-generated SDR base image (e.g., from LUT)
+    - Allows precise control over SDR appearance
+    
+ 2. Internal SDR (sdrPath = "GENERATE"):
+    - Core Image generates SDR from HDR automatically
+    - Uses Apple's standard tone mapping
+    - Best for platform-native compatibility
+ 
+ METADATA:
+ ---------
+ MakerApple tags are injected for iOS compatibility:
+ - Tag 33: HDRHeadroom (ratio value)
+ - Tag 48: HDRGain offset (0.0 for standard)
+ 
+ Usage:
+    swift convert_hdr_heic.swift <sdr_path|GENERATE> <hdr_path> <output_path> <headroom>
+ 
+ Arguments:
+    sdr_path  : Path to SDR image, or "GENERATE" for auto-generation
+    hdr_path  : Path to HDR image (should be P3 PQ or Rec.2100 PQ)
+    output    : Output HEIC file path
+    headroom  : Estimated headroom ratio (e.g., 2.5 for 2.5x)
+ 
+ Requirements:
+    - macOS with Core Image framework
+    - Swift 5.0+
+ */
+
 import Foundation
 import CoreImage
 import CoreImage.CIFilterBuiltins

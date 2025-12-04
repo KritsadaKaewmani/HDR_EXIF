@@ -5,14 +5,49 @@ HDR HEIC Gain Map Converter
 ============================
 
 This script converts HDR images to HEIC format with adaptive gain maps
-using Apple's Core Image framework.
+using Apple's Core Image framework via Swift integration.
 
-It supports two modes:
-1. LUT-based: Uses a specific ACES LUT to create the SDR base image.
-2. Swift-based: Uses Core Image to generate the SDR base image automatically.
+DUAL-MODE APPROACH:
+-------------------
+The script generates TWO versions of each HEIC file to compare different
+SDR base image generation methods:
 
-Both modes ensure the input is converted to P3 D65 PQ before processing
-to handle source color profiles correctly.
+1. **LUT Mode** (_LUT.heic):
+   - Uses ACES 2.0 LUT (ACES20_P3D65PQ1000D60_to_sRGBPW.cube)
+   - Provides precise, cinematically-graded SDR base image
+   - Best for maintaining specific color science workflows
+   
+2. **Swift Mode** (_Swift.heic):
+   - Uses Apple's Core Image automatic SDR generation
+   - Leverages native macOS/iOS tone mapping algorithms
+   - Best for platform-native HDR display compatibility
+
+COLOR MANAGEMENT:
+-----------------
+All input images are normalized to P3 D65 PQ (ST.2084) color space
+using ImageMagick before processing. This ensures:
+- Consistent input regardless of source profile
+- Correct LUT application (LUT expects P3 PQ input)
+- Proper gain map calculation
+
+GAIN MAP VISUALIZATION:
+-----------------------
+For each HEIC file, a corresponding PNG gain map is exported:
+- Filename: <source>_<mode>_gainmap.png
+- Content: Grayscale visualization of HDR/SDR ratio
+- Normalization: (gain - 1.0) / (max_headroom - 1.0)
+- Enhancement: Gamma 0.5 + 3x boost for visibility
+- Purpose: Study and compare gain map distributions
+
+WORKFLOW:
+---------
+1. Convert input to P3 PQ using ImageMagick
+2. Load as 16-bit linear data (PQ EOTF applied)
+3. Generate SDR base (LUT or fallback tone mapping)
+4. Calculate gain map in Python (HDR / SDR ratio)
+5. Save gain map PNG for study
+6. Call Swift script to create HEIC with Core Image
+7. Inject Apple HDR metadata using ExifTool
 
 Usage:
     python HDR_GainMap.py <input_file_or_directory>
@@ -24,6 +59,12 @@ Requirements:
     - ExifTool (for metadata injection)
     - ACES LUT file: ACES20_P3D65PQ1000D60_to_sRGBPW.cube
     - ICC Profile: HDR_P3_D65_ST2084.icc
+
+Output:
+    - converted_gainmap/<filename>_LUT.heic
+    - converted_gainmap/<filename>_LUT_gainmap.png
+    - converted_gainmap/<filename>_Swift.heic
+    - converted_gainmap/<filename>_Swift_gainmap.png
 """
 
 # ============================================================================

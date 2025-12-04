@@ -4,21 +4,48 @@
 HDR HEIC Converter with ICC Profile Embedding
 ==============================================
 
-This script converts image files to HEIF (High Efficiency Image Format) with HDR support
-and embeds ICC color profiles for accurate color reproduction.
+This script converts HDR images to HEIC format with embedded ICC profiles
+for accurate color reproduction without tone mapping.
 
-Purpose:
-    - Convert images (TIFF, JPEG, PNG) to 10-bit HEIF format
-    - Preserve HDR metadata and color information
-    - Embed ICC profiles for color-managed workflows
-    - Support both single file and batch directory processing
+PURPOSE:
+--------
+Educational tool to demonstrate ICC profile embedding in HEIC files
+while preserving original pixel values (no color space conversion).
+
+COLOR MANAGEMENT STRATEGY:
+--------------------------
+"Preserve Pixels" Approach:
+1. Strip any existing ICC profile from source image
+2. Embed target ICC profile WITHOUT converting pixel values
+3. Result: Original pixel data tagged with new profile
+
+This prevents ImageMagick from applying unwanted tone mapping or
+color space conversions that can cause "crazy colors" with HDR content.
+
+SUPPORTED PROFILES:
+-------------------
+- HDR_P3_D65_ST2084.icc: Display P3 with PQ (ST.2084) transfer function
+- P3_PQ.icc: Alternative P3 PQ profile
+
+WORKFLOW:
+---------
+1. Validate ICC profile files exist
+2. For each input image:
+   a. Strip existing profile (+profile "*")
+   b. Embed target profile (-profile <icc_file>)
+   c. Save as 10-bit 4:4:4 HEIC with quality 100
+3. Output to converted_with_ICC/ directory
 
 Usage:
     python HDR_ICC.py <input_file_or_directory>
+    python HDR_ICC.py -o <input>  # Overwrite existing files
 
 Requirements:
     - ImageMagick 7+ installed at /opt/homebrew/bin/magick
-    - Valid ICC profile files (HDR_P3_D65_ST2084.icc, P3_PQ.icc)
+    - Valid ICC profile files in script directory
+
+Output:
+    - converted_with_ICC/Src_<filename>_SaveAs_<profile>.heic
 """
 
 # ============================================================================
