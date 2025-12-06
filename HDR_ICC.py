@@ -38,7 +38,6 @@ WORKFLOW:
 
 Usage:
     python HDR_ICC.py <input_file_or_directory>
-    python HDR_ICC.py -o <input>  # Overwrite existing files
 
 Requirements:
     - ImageMagick 7+ installed at /opt/homebrew/bin/magick
@@ -143,7 +142,7 @@ def convert_to_heif_with_icc(input_file, output_file, icc_profile, profile_name)
 # BATCH PROCESSING FUNCTION
 # ============================================================================
 
-def process_directory(directory, overwrite=False):
+def process_directory(directory):
     """
     Process all supported image files in a directory.
     
@@ -153,7 +152,7 @@ def process_directory(directory, overwrite=False):
     
     Parameters:
         directory (str): Path to directory containing images
-        overwrite (bool): If True, overwrite existing files without prompting
+
     
     Supported Formats:
         - TIFF (.tif, .tiff) - Common for professional/HDR workflows
@@ -190,7 +189,7 @@ def process_directory(directory, overwrite=False):
     
     print(f"\n{'='*70}")
     print(f"Processing directory: {directory}")
-    print(f"Overwrite mode: {'Enabled' if overwrite else 'Disabled'}")
+
     print(f"{'='*70}\n")
     
     # Get list of all files in directory
@@ -236,11 +235,7 @@ def process_directory(directory, overwrite=False):
             # Construct output filename
             output_file = os.path.join(converted_dir, f"Src_{base_name}_SaveAs_{profile_name}.heic")
             
-            # Skip if output file already exists and overwrite is not enabled
-            if os.path.exists(output_file) and not overwrite:
-                print(f"  ⊘ Skipping {profile_name} (output already exists)")
-                file_skipped += 1
-                continue
+            # Overwrite existing files (default behavior)
             
             # Attempt conversion
             try:
@@ -359,12 +354,6 @@ def main():
         help="Path to image file or directory of images"
     )
     
-    parser.add_argument(
-        "-o", "--overwrite",
-        action="store_true",
-        help="Overwrite existing output files without prompting"
-    )
-    
     # If no arguments provided, print custom help and exit
     if len(sys.argv) < 2:
         print("\n" + "="*70)
@@ -374,7 +363,7 @@ def main():
         print(f"  python {os.path.basename(__file__)} [-o] <input_file_or_directory>")
         print("\nArguments:")
         print("  input_file_or_directory  Path to image file or directory of images")
-        print("  -o, --overwrite          Overwrite existing output files without prompting")
+
         print("\nICC Profiles Used:")
         print("  - HDR_P3_D65_ST2084.icc")
         print("  - P3_PQ.icc")
@@ -390,7 +379,7 @@ def main():
         
     args = parser.parse_args()
     input_path = args.input_path
-    overwrite = args.overwrite
+
     
     # --- Validate ICC Profiles ---
     print("\nValidating ICC profiles...")
@@ -419,7 +408,7 @@ def main():
             # Single file conversion
             print(f"\nMode: Single file conversion")
             print(f"Input: {input_path}")
-            print(f"Overwrite mode: {'Enabled' if overwrite else 'Disabled'}\n")
+
             
             # Get the directory containing the input file
             input_dir = os.path.dirname(os.path.abspath(input_path))
@@ -442,12 +431,7 @@ def main():
                 output_path = os.path.join(converted_dir, f"Src_{base_name}_SaveAs_{profile_name}.heic")
                 
                 # Check if output already exists
-                if os.path.exists(output_path) and not overwrite:
-                    print(f"⚠ Warning: Output file already exists: {output_path}")
-                    response = input("Overwrite? (y/n): ")
-                    if response.lower() != 'y':
-                        print(f"Skipping {profile_name} conversion.")
-                        continue
+                # Overwrite existing files (default behavior)
                 
                 # Perform conversion
                 print(f"Converting with {profile_name}...")
@@ -462,7 +446,7 @@ def main():
             print(f"Input directory: {input_path}")
             
             # Process all images in directory
-            successful, failed, skipped = process_directory(input_path, overwrite=overwrite)
+            successful, failed, skipped = process_directory(input_path)
             
             # Exit with error code if any conversions failed
             if failed > 0:

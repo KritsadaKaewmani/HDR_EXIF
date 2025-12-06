@@ -32,7 +32,6 @@ Simple HEIC conversion with ICC profile embedding.
 
 ```bash
 python HDR_ICC.py <input_file_or_directory>
-python HDR_ICC.py -o <input>  # Overwrite existing files
 ```
 
 **Output**: `converted_with_ICC/Src_<filename>_SaveAs_<profile>.heic`
